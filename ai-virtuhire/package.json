@@ -42,7 +42,7 @@
     "node-fetch": "^3.3.2",
     "openai": "^4.68.3",
     "pdf-parse": "^1.1.1",
-    "pdfjs-dist": "^3.2.146",
+    "pdfjs-dist": "^4.10.38",
     "react": "^18",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18",
