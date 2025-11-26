@@ -158,22 +158,21 @@
 //     </div>
 //   );
 // }
+
 "use client";
 
 import { useState } from "react";
-// ✅ Use ESM build – avoids Node canvas dependency
-import {
-  GlobalWorkerOptions,
-  getDocument,
-} from "pdfjs-dist/build/pdf.mjs";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import { db } from "@/utils/db";
 import { resumeScore } from "@/utils/schema";
 import { generateAtsFeedback } from "@/utils/GeminiAiModel";
 
-// If you still have pdf.worker.min.js in /public, keep this line.
-// Otherwise you can comment it out and it will still work for small PDFs.
-GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+// ✅ Configure pdf.js worker in the browser using a CDN
+if (typeof window !== "undefined") {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js";
+}
 
 export default function ATS() {
   const [jobDescription, setJobDescription] = useState("");
@@ -197,14 +196,19 @@ export default function ATS() {
       try {
         const typedarray = new Uint8Array(this.result);
 
-        // ✅ Use getDocument from pdf.mjs
-        const pdf = await getDocument(typedarray).promise;
+        // ✅ Use getDocument from pdf.js (legacy build)
+        const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
         let text = "";
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
           text += content.items.map((item) => item.str).join(" ") + "\n";
+        }
+
+        if (!text.trim()) {
+          alert("Could not read text from the PDF. Try another file.");
+          return;
         }
 
         setExtractedText(text);
@@ -270,7 +274,7 @@ Return ONLY strict JSON (no extra text) with this structure:
       await db.insert(resumeScore).values({
         mockIdRef: "unique_mock_id", // TODO: later replace with real mock id
         resumeText: extractedText,
-        jobDescription: jobDescription,
+        jobDescription,
         atsScore: jsonFeedback.atsScore ?? "",
         strength: (jsonFeedback.strengths || []).join(", "),
         weakness: (jsonFeedback.weaknesses || []).join(", "),
