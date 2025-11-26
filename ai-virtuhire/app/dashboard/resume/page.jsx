@@ -158,18 +158,15 @@
 //     </div>
 //   );
 // }
-
 "use client";
 
 import { useState } from "react";
-import * as pdfjsLib from "pdfjs-dist";
+// ✅ Use the webpack/browser build to avoid `canvas` issue on Vercel
+import * as pdfjsLib from "pdfjs-dist/webpack";
+
 import { db } from "@/utils/db";
 import { resumeScore } from "@/utils/schema";
 import { generateAtsFeedback } from "@/utils/GeminiAiModel";
-
-
-// PDF worker (keep your worker file in /public)
-pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
 export default function ATS() {
   const [jobDescription, setJobDescription] = useState("");
@@ -192,7 +189,8 @@ export default function ATS() {
     reader.onload = async function () {
       try {
         const typedarray = new Uint8Array(this.result);
-        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+        // pdfjsLib from webpack build – no canvas needed
+        const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
         let text = "";
 
         for (let i = 1; i <= pdf.numPages; i++) {
