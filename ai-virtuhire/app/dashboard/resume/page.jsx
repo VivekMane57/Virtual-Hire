@@ -161,12 +161,19 @@
 "use client";
 
 import { useState } from "react";
-// ✅ Use the webpack/browser build to avoid `canvas` issue on Vercel
-import * as pdfjsLib from "pdfjs-dist/webpack";
+// ✅ Use ESM build – avoids Node canvas dependency
+import {
+  GlobalWorkerOptions,
+  getDocument,
+} from "pdfjs-dist/build/pdf.mjs";
 
 import { db } from "@/utils/db";
 import { resumeScore } from "@/utils/schema";
 import { generateAtsFeedback } from "@/utils/GeminiAiModel";
+
+// If you still have pdf.worker.min.js in /public, keep this line.
+// Otherwise you can comment it out and it will still work for small PDFs.
+GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
 export default function ATS() {
   const [jobDescription, setJobDescription] = useState("");
@@ -189,8 +196,9 @@ export default function ATS() {
     reader.onload = async function () {
       try {
         const typedarray = new Uint8Array(this.result);
-        // pdfjsLib from webpack build – no canvas needed
-        const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+
+        // ✅ Use getDocument from pdf.mjs
+        const pdf = await getDocument(typedarray).promise;
         let text = "";
 
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -260,7 +268,7 @@ Return ONLY strict JSON (no extra text) with this structure:
 
       // Save to DB
       await db.insert(resumeScore).values({
-        mockIdRef: "unique_mock_id", // TODO: replace with real mock id
+        mockIdRef: "unique_mock_id", // TODO: later replace with real mock id
         resumeText: extractedText,
         jobDescription: jobDescription,
         atsScore: jsonFeedback.atsScore ?? "",

@@ -5,16 +5,12 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // If you already have `experimental` etc. keep them here
-  webpack: (config, { isServer }) => {
-    // We only care about browser build
-    if (!isServer) {
-      config.resolve.alias = {
-        ...(config.resolve.alias || {}),
-        // 🔴 Tell webpack: "canvas" should be treated as an empty module
-        canvas: false,
-      };
-    }
+  webpack: (config) => {
+    // Just in case some library still tries to require "canvas"
+    config.resolve.fallback = {
+      ...(config.resolve.fallback || {}),
+      canvas: false,
+    };
     return config;
   },
 };
