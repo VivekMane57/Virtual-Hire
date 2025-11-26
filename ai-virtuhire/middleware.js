@@ -1,11 +1,17 @@
 // middleware.js
-import { NextResponse } from "next/server";
+import { authMiddleware } from "@clerk/nextjs";
 
-export function middleware() {
-  // just let every request pass
-  return NextResponse.next();
-}
+export default authMiddleware({
+  // ✅ PUBLIC ROUTES (no login needed)
+  publicRoutes: [
+    "/",              // landing page
+    "/sign-in(.*)",
+    "/sign-up(.*)",
+    "/api/(.*)",      // keep API public for now
+  ],
+});
 
+// ✅ Official Clerk matcher for App Router
 export const config = {
   matcher: [
     "/((?!.+\\.[\\w]+$|_next).*)",
