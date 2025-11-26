@@ -1,28 +1,19 @@
 // utils/GeminiAiModel.js
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey =
-  process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
 if (!apiKey) {
-  throw new Error(
-    "Gemini API key missing. Set NEXT_PUBLIC_GEMINI_API_KEY or GEMINI_API_KEY."
-  );
+  throw new Error("NEXT_PUBLIC_GEMINI_API_KEY is missing");
 }
 
-const MODEL_NAME = "gemini-1.5-flash"; // or your preferred model
-const client = new GoogleGenAI({ apiKey });
+const MODEL_NAME = "gemini-flash-latest";
+const ai = new GoogleGenAI({ apiKey });
 
-/** Low-level helper: call Gemini and return full text */
-async function callGemini(prompt) {
-  const contents = [
-    {
-      role: "user",
-      parts: [{ text: prompt }],
-    },
-  ];
+export async function generateAtsFeedback(prompt) {
+  const contents = [{ role: "user", parts: [{ text: prompt }] }];
 
-  const stream = await client.models.generateContentStream({
+  const stream = await ai.models.generateContentStream({
     model: MODEL_NAME,
     contents,
   });
@@ -34,29 +25,12 @@ async function callGemini(prompt) {
   return fullText;
 }
 
-/** Used for mock interview question generation */
-export async function generateInterviewQuestions(prompt) {
-  return callGemini(prompt);
-}
-
-/** Used for ATS resume feedback */
-export async function generateAtsFeedback(prompt) {
-  return callGemini(prompt);
-}
-
-/**
- * Compat object so old code using `chatSession.sendMessage(prompt)`
- * still works.
- */
+// simple compat wrapper for old code using `chatSession.sendMessage`
 export const chatSession = {
   async sendMessage(prompt) {
-    const text = await callGemini(prompt);
+    const text = await generateAtsFeedback(prompt);
     return {
-      response: {
-        text() {
-          return text;
-        },
-      },
+      response: { text: () => text },
     };
   },
 };
