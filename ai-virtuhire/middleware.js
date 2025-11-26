@@ -1,21 +1,23 @@
+// ai-virtuhire/middleware.js
 import { authMiddleware } from "@clerk/nextjs";
 
 export default authMiddleware({
+  // ✅ routes that don't need auth
   publicRoutes: [
-    "/",                   // Allow homepage without login
+    "/",
     "/about",
     "/contactus",
-    "/resume",
-    "/interview",
     "/working",
+    "/dashboard/resume",
     "/api/webhook(.*)",
   ],
 });
 
+// ✅ use ONLY non-capturing groups `(?:...)` in matcher
 export const config = {
   matcher: [
-    // Skip Next.js internals and public static files
-    "/((?!_next|favicon.ico|images|public|.*\\.(png|jpg|jpeg|gif|svg|ico|css|js|woff|woff2)).*)",
-    "/(api|trpc)(.*)",
+    // apply middleware to everything except Next internals & static assets
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|css|js|woff|woff2)).*)",
+    "/",
   ],
 };
