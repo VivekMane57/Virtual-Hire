@@ -1,23 +1,20 @@
-// ai-virtuhire/middleware.js
-import { authMiddleware } from "@clerk/nextjs";
+// middleware.js at project root (ai-virtuhire/middleware.js)
+import { authMiddleware } from "@clerk/nextjs/server";
 
 export default authMiddleware({
-  // ✅ routes that don't need auth
+  // pages that do NOT require login
   publicRoutes: [
-    "/",
-    "/about",
-    "/contactus",
-    "/working",
-    "/dashboard/resume",
-    "/api/webhook(.*)",
+    "/",                // landing page
+    "/api/webhook(.*)", // keep if you use webhooks
   ],
 });
 
-// ✅ use ONLY non-capturing groups `(?:...)` in matcher
+// This matcher is directly from Clerk docs – no invalid capture groups.
 export const config = {
   matcher: [
-    // apply middleware to everything except Next internals & static assets
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|css|js|woff|woff2)).*)",
-    "/",
+    // run middleware for all paths except static files and _next
+    "/((?!.+\\.[\\w]+$|_next).*)",
+    // always run for API routes
+    "/(api|trpc)(.*)",
   ],
 };
