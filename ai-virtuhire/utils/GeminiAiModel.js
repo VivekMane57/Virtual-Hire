@@ -1,47 +1,62 @@
 // utils/GeminiAiModel.js
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
-// Public key (for browser)
-const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+const apiKey =
+  process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
 if (!apiKey) {
   throw new Error(
-    "❌ ERROR: NEXT_PUBLIC_GEMINI_API_KEY is missing. Add it to `.env.local` and restart the app."
+    "Gemini API key missing. Set NEXT_PUBLIC_GEMINI_API_KEY or GEMINI_API_KEY."
   );
 }
 
-const genAI = new GoogleGenerativeAI(apiKey);
-const MODEL_NAME = "gemini-1.5-flash";
+const MODEL_NAME = "gemini-1.5-flash"; // or your preferred model
+const client = new GoogleGenAI({ apiKey });
 
-/**
- * Generate Interview Questions (used by Start New Interview modal)
- */
+/** Low-level helper: call Gemini and return full text */
+async function callGemini(prompt) {
+  const contents = [
+    {
+      role: "user",
+      parts: [{ text: prompt }],
+    },
+  ];
+
+  const stream = await client.models.generateContentStream({
+    model: MODEL_NAME,
+    contents,
+  });
+
+  let fullText = "";
+  for await (const chunk of stream) {
+    if (chunk.text) fullText += chunk.text;
+  }
+  return fullText;
+}
+
+/** Used for mock interview question generation */
 export async function generateInterviewQuestions(prompt) {
-  try {
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
-    const result = await model.generateContent(prompt);
-    return result.response.text();
-  } catch (error) {
-    console.error("❌ Interview Question Generation Error:", error);
-    return "Error generating interview questions.";
-  }
+  return callGemini(prompt);
+}
+
+/** Used for ATS resume feedback */
+export async function generateAtsFeedback(prompt) {
+  return callGemini(prompt);
 }
 
 /**
- * ATS Resume Feedback (used by resume page)
+ * Compat object so old code using `chatSession.sendMessage(prompt)`
+ * still works.
  */
-export async function generateAtsFeedback(prompt) {
-  try {
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
-    const result = await model.generateContent(prompt);
-    return result.response.text();
-  } catch (error) {
-    console.error("❌ ATS Feedback Error:", error);
-    return "Error generating resume analysis.";
-  }
-}
-
-// Optional simple alias
-export async function askGemini(prompt) {
-  return generateInterviewQuestions(prompt);
-}
+export const chatSession = {
+  async sendMessage(prompt) {
+    const text = await callGemini(prompt);
+    return {
+      response: {
+        text() {
+          return text;
+        },
+      },
+    };
+  },
+};
