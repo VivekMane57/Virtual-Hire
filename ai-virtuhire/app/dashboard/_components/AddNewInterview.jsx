@@ -125,201 +125,264 @@
 
 // export default AddNewInterview
 
-
-
+// app/dashboard/_components/AddNewInterview.jsx
 "use client";
-import React, { useState } from 'react';
+
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { chatSession } from '@/utils/GeminiAiModel';
-import { LoaderCircle } from 'lucide-react';
-import { MockInterview } from '@/utils/schema';
-import { v4 as uuidv4 } from 'uuid';
-import { useUser } from '@clerk/nextjs';
-import moment from 'moment/moment';
-import { db } from '@/utils/db';
-import { useRouter } from 'next/navigation';
+import { LoaderCircle } from "lucide-react";
+
+import { generateInterviewQuestions } from "@/utils/GeminiAiModel";
+import { MockInterview } from "@/utils/schema";
+import { v4 as uuidv4 } from "uuid";
+import { useUser } from "@clerk/nextjs";
+import moment from "moment/moment";
+import { db } from "@/utils/db";
+import { useRouter } from "next/navigation";
 
 function AddNewInterview() {
-  const [openDailog, setOpenDialog] = useState(false);
-  const [jobPosition, setJobPosition] = useState('');
-  const [jobDesc, setJobDesc] = useState('');
-  const [jobExperience, setJobExperience] = useState('');
-  const [jobResume, setJobResume] = useState('');
+  const [openDialog, setOpenDialog] = useState(false);
+  const [jobPosition, setJobPosition] = useState("");
+  const [jobDesc, setJobDesc] = useState("");
+  const [jobExperience, setJobExperience] = useState("");
+  const [jobResume, setJobResume] = useState("");
   const [loading, setLoading] = useState(false);
-  const [jsonResponse, setJsonResponse] = useState([]);
+
   const { user } = useUser();
   const router = useRouter();
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    // const InputPrompt = `Job position: ${jobPosition}, Job Description: ${jobDesc}, Years of Experience: ${jobExperience}.Depends on job position, Job Description, Years of Experience Please generate ${process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT},interview question with 1 aptitude related and 1 coding related question with 4 options in Same line without any extra line space along with Answers in JSON format.Give us question and answer as field on JSON. Dont give any extra information or explaination.Generate in this format eg.: [  {    "question": "Explain the difference between a list and a tuple in Python.  ***<Options> a)  b)  c)  d) *** (This options is only for Aptitude and output based question)",    "answer": "Lists are mutable, meaning they can be modified after creation. Tuples are immutable, meaning they cannot be changed after creation."  }]`;
 
+    const questionCount =
+      process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT || 10;
 
-    const InputPrompt = `Job position: ${jobPosition}, Job Description: ${jobDesc}, Years of Experience: ${jobExperience}.Depends on job position, Job Description, Years of Experience Please generate ${process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT},interview question with 2 aptitude related and 1 coding related question with 4 options(only for output based question) in Same line without any extra line space along with Answers in JSON format.Give us question and answer as field on JSON. Dont give any extra information or explaination.Generate in this format eg.: [  {    "question": "Explain the difference between a list and a tuple in Python.",  "answer": "Lists are mutable, meaning they can be modified after creation. Tuples are immutable, meaning they cannot be changed after creation."  }] and for aptitude,coding and coding output based question(coding question is only for developer related field/job and for other field/job generate logical based question) is in this format: [{"question": "You have 100 coins laying flat on a table, each with a head side and a tail side. 10 of them are heads up. You can't see or feel the coins, but you can flip them over one at a time. How many flips do you need to guarantee that all coins are heads up?","options": ["10", "50", "90", "100"],"answer": "90"}] (this is sample question generate different question in this format)`;
+    const prompt = `
+You are an expert technical interviewer.
 
-    const result = await chatSession.sendMessage(InputPrompt);
-    console.log(result);
-    const MockJsonResp = (await result.response.text()).replace('```json', '').replace('```', '');
+Generate ${questionCount} interview questions for this candidate.
 
-    if (MockJsonResp) {
-      const resp = await db.insert(MockInterview).values({
-        mockId: uuidv4(),
-        jsonMockResp: MockJsonResp,
-        jobPosition,
-        jobDesc,
-        jobExperience,
-        jobResume,
-        createdBy: user?.primaryEmailAddress?.emailAddress,
-        createdAt: moment().format('DD-MM-YYYY'),
-      }).returning({ mockId: MockInterview.mockId });
+Job position: ${jobPosition}
+Job description / tech stack: ${jobDesc}
+Years of experience: ${jobExperience}
 
-      if (resp) {
-        setOpenDialog(false);
-        router.push('/dashboard/interview/' + resp[0]?.mockId);
+Rules:
+- At least 2 aptitude / reasoning MCQ questions.
+- At least 1 coding / output-based MCQ question (if role is technical).
+- For MCQ and coding questions, use:
+  {"type": "mcq", "question": "...", "options": ["A", "B", "C", "D"], "answer": "A"}
+- For normal questions, use:
+  {"type": "normal", "question": "...", "answer": "..."}
+
+Return ONLY a valid JSON array like:
+[
+  { "type": "normal", "question": "...", "answer": "..." },
+  { "type": "mcq", "question": "...", "options": ["A","B","C","D"], "answer": "A" }
+]
+DO NOT add any extra text, explanation, or markdown fences.
+    `;
+
+    try {
+      // 🔮 Call Gemini helper
+      const responseText = await generateInterviewQuestions(prompt);
+
+      if (!responseText) {
+        console.error("Empty response from Gemini");
+        alert("Error: got empty response from AI.");
+        return;
       }
-    } else {
-      console.log("Error occurred while generating interview.");
+
+      // Clean possible ```json ... ``` wrappers
+      const cleaned = responseText
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+
+      let parsed;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch (err) {
+        console.error("JSON parse error. Raw response:", responseText);
+        alert(
+          "AI returned invalid JSON. Please try again once more. Check console for details."
+        );
+        return;
+      }
+
+      const mockId = uuidv4();
+
+      const resp = await db
+        .insert(MockInterview)
+        .values({
+          mockId,
+          jsonMockResp: JSON.stringify(parsed),
+          jobPosition,
+          jobDesc,
+          jobExperience,
+          jobResume,
+          createdBy: user?.primaryEmailAddress?.emailAddress,
+          createdAt: moment().format("DD-MM-YYYY"),
+        })
+        .returning({ mockId: MockInterview.mockId });
+
+      const finalId = resp?.[0]?.mockId || mockId;
+
+      setOpenDialog(false);
+      router.push(`/dashboard/interview/${finalId}`);
+    } catch (err) {
+      console.error("Error generating interview:", err);
+      alert(
+        "Failed to generate interview questions. Please try again. See console for details."
+      );
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  // >>Demo Start
+  // Navigate to ATS Resume page
   const handleDivClick = () => {
-    router.push('/dashboard/resume'); // Adjust this path to match your ATS page's route
+    router.push("/dashboard/resume");
   };
-
-  // >>Demo End
 
   return (
     <div>
-      {/* Add New Button */}
-      {/* <div
-        className="p-10 border rounded-lg bg-gradient-to-r from-blue-500 via-purple-600 to-pink-500 text-white hover:scale-105 transition-transform duration-300 cursor-pointer shadow-lg"
-        onClick={() => setOpenDialog(true)}
-      >
-        <h2 className="text-lg text-center font-semibold">Start New Interview by One Click</h2>
-        <p className="mt-2 text-center text-sm">Create questions based on job roles, experience, and more!</p>
-      </div>
-
-      <div
-        className="p-10 border rounded-lg bg-gradient-to-r from-blue-500 via-purple-600 to-pink-500 text-white hover:scale-105 transition-transform duration-300 cursor-pointer shadow-lg"
-        onClick={() => setOpenDialog(true)}
-      >
-        <h2 className="text-lg text-center font-semibold">Start New Interview by One Click</h2>
-        <p className="mt-2 text-center text-sm">Create questions based on job roles, experience, and more!</p>
-      </div> */}
-
-      {/* ///Demo Start */}
-      <div className="flex gap-4">
+      {/* Gradient tiles */}
+      <div className="flex gap-4 flex-wrap">
         <div
-          className="flex-1 min-w-[350px] p-10 border rounded-lg bg-gradient-to-r from-blue-500 via-purple-600 to-pink-500 text-white hover:scale-105 transition-transform duration-300 cursor-pointer shadow-lg"
-          onClick={() => setOpenDialog(true)} // Assuming this opens a dialog
+          className="flex-1 min-w-[320px] p-10 border rounded-lg bg-gradient-to-r from-blue-500 via-purple-600 to-pink-500 text-white hover:scale-105 transition-transform duration-300 cursor-pointer shadow-lg"
+          onClick={() => setOpenDialog(true)}
         >
-          <h2 className="text-lg text-center font-semibold">Start New Interview by One Click</h2>
-          <p className="mt-2 text-center text-sm">Create questions based on job roles, experience, and more!</p>
+          <h2 className="text-lg text-center font-semibold">
+            Start New Interview by One Click
+          </h2>
+          <p className="mt-2 text-center text-sm">
+            Create questions based on job role, experience, and your tech stack.
+          </p>
         </div>
 
         <div
-          className="flex-1 min-w-[350px] p-10 border rounded-lg bg-gradient-to-r from-green-400 via-teal-500 to-blue-600 text-white hover:scale-105 transition-transform duration-300 cursor-pointer shadow-lg ml-20"
-          onClick={handleDivClick} // Navigate to the ATS page on click
+          className="flex-1 min-w-[320px] p-10 border rounded-lg bg-gradient-to-r from-green-400 via-teal-500 to-blue-600 text-white hover:scale-105 transition-transform duration-300 cursor-pointer shadow-lg"
+          onClick={handleDivClick}
         >
-          <h2 className="text-lg text-center font-semibold">Check Your ATS Resume Score</h2>
-          <p className="mt-2 text-center text-sm">Generate resume Matching percentage instantly!</p>
+          <h2 className="text-lg text-center font-semibold">
+            Check Your ATS Resume Score
+          </h2>
+          <p className="mt-2 text-center text-sm">
+            Upload your resume and get instant ATS score and feedback.
+          </p>
         </div>
       </div>
 
-      {/* ///Demo End */}
-
-
-      {/* Dialog for Form */}
-      <Dialog open={openDailog}>
+      {/* Dialog for form */}
+      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="max-w-2xl p-6 bg-white rounded-lg shadow-lg">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-gray-700">Tell VirtuHire about your Job Interviewing</DialogTitle>
-            <DialogDescription className="mt-3 text-gray-500">
-              <form onSubmit={onSubmit}>
-                {/* Job Role Input */}
-                <div className="mb-6">
-                  <Label className="block text-sm font-medium text-gray-700">Job Role/Position</Label>
-                  <Input
-                    placeholder="e.g., Full Stack Developer"
-                    required
-                    className="w-full mt-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
-                    onChange={(event) => setJobPosition(event.target.value)}
-                  />
-                </div>
-
-                {/* Job Description Input */}
-                <div className="mb-6">
-                  <Label className="block text-sm font-medium text-gray-700">Job Description/Tech Stack</Label>
-                  <Textarea
-                    placeholder="e.g., React, Next.js, Angular, etc."
-                    required
-                    className="w-full mt-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
-                    onChange={(event) => setJobDesc(event.target.value)}
-                  />
-                </div>
-
-                {/* Years of Experience Input */}
-                <div className="mb-6">
-                  <Label className="block text-sm font-medium text-gray-700">Years of Experience</Label>
-                  <Input
-                    type="number"
-                    placeholder="e.g., 2"
-                    required
-                    className="w-full mt-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
-                    onChange={(event) => setJobExperience(event.target.value)}
-                  />
-                </div>
-
-                {/* Resume Upload Input */}
-                <div className="mb-6">
-                  <Label htmlFor="resume-upload" className="block text-sm font-medium text-gray-700">
-                    Upload Your Resume
-                  </Label>
-                  <Input
-                    type="file"
-                    id="resume-upload"
-                    className="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2"
-                    onChange={(event) => setJobResume(event.target.value)}
-                  />
-                </div>
-
-                {/* Buttons */}
-                <div className="flex justify-end gap-3">
-                  <Button type="button" variant="ghost" onClick={() => setOpenDialog(false)} className="px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 rounded-lg">
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
-                  >
-                    {loading ? (
-                      <span className="flex items-center">
-                        <LoaderCircle className="animate-spin mr-2" />
-                        Generating Interview...
-                      </span>
-                    ) : (
-                      'Start Interview'
-                    )}
-                  </Button>
-                </div>
-              </form>
+            <DialogTitle className="text-2xl font-bold text-gray-700">
+              Tell VirtuHire about your Job Interviewing
+            </DialogTitle>
+            <DialogDescription className="mt-2 text-gray-500">
+              Add details about your role, tech stack, and experience so we can
+              generate realistic interview questions.
             </DialogDescription>
           </DialogHeader>
+
+          {/* ⬇️ Form is OUTSIDE DialogDescription to avoid <p><form> hydration error */}
+          <form onSubmit={onSubmit} className="mt-4 space-y-6">
+            {/* Job Role */}
+            <div>
+              <Label className="block text-sm font-medium text-gray-700">
+                Job Role / Position
+              </Label>
+              <Input
+                placeholder="e.g., Full Stack Developer"
+                required
+                className="w-full mt-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setJobPosition(e.target.value)}
+              />
+            </div>
+
+            {/* Job Description */}
+            <div>
+              <Label className="block text-sm font-medium text-gray-700">
+                Job Description / Tech Stack
+              </Label>
+              <Textarea
+                placeholder="e.g., React, Next.js, Node.js, MongoDB…"
+                required
+                className="w-full mt-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setJobDesc(e.target.value)}
+              />
+            </div>
+
+            {/* Experience */}
+            <div>
+              <Label className="block text-sm font-medium text-gray-700">
+                Years of Experience
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                max="60"
+                placeholder="e.g., 1"
+                required
+                className="w-full mt-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setJobExperience(e.target.value)}
+              />
+            </div>
+
+            {/* Resume upload – currently just storing path/string */}
+            <div>
+              <Label
+                htmlFor="resume-upload"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Upload Your Resume
+              </Label>
+              <Input
+                type="file"
+                id="resume-upload"
+                className="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2"
+                onChange={(e) => setJobResume(e.target.value)}
+              />
+            </div>
+
+            {/* Buttons */}
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setOpenDialog(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
+              >
+                {loading ? (
+                  <span className="flex items-center">
+                    <LoaderCircle className="animate-spin mr-2" />
+                    Generating Interview...
+                  </span>
+                ) : (
+                  "Start Interview"
+                )}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
@@ -327,7 +390,3 @@ function AddNewInterview() {
 }
 
 export default AddNewInterview;
-
-
-
-

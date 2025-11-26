@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^5.7.1",
-    "@google/generative-ai": "^0.21.0",
+    "@google/genai": "^1.29.1",
+    "@google/generative-ai": "^0.24.1",
+    "@heroicons/react": "^2.2.0",
     "@neondatabase/serverless": "^0.9.5",
     "@radix-ui/react-checkbox": "^1.1.2",
     "@radix-ui/react-collapsible": "^1.1.1",
@@ -49,7 +51,7 @@
     "react-webcam": "^7.2.0",
     "sonner": "^1.5.0",
     "stripe": "^17.2.1",
-    "tailwind-merge": "^2.5.2",
+    "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^10.0.0"
   },
