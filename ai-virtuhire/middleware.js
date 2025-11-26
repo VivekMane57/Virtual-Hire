@@ -1,21 +1,20 @@
 // middleware.js
 import { authMiddleware } from "@clerk/nextjs";
 
+// All routes are protected EXCEPT the ones in publicRoutes
 export default authMiddleware({
-  // ✅ PUBLIC ROUTES (no login needed)
   publicRoutes: [
     "/",              // landing page
     "/sign-in(.*)",
     "/sign-up(.*)",
-    "/api/(.*)",      // keep API public for now
+    "/api/webhook(.*)" // keep any public webhooks here if you have them
   ],
 });
 
-// ✅ Official Clerk matcher for App Router
 export const config = {
   matcher: [
-    "/((?!.+\\.[\\w]+$|_next).*)",
-    "/",
+    // Apply Clerk to all routes except static assets and Next internals
+    "/((?!_next|.*\\.(?:js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf)).*)",
     "/(api|trpc)(.*)",
   ],
 };
