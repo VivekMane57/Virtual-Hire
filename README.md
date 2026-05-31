@@ -1,11 +1,11 @@
 # 🤖 Virtual-Hire – AI-Powered Interview & Recruitment Platform
 
-### 🔗 [📄 View My Resume (VDev.pdf)](VDev.pdf)
+
 
 **Developer:** [Vivek Mane](https://www.linkedin.com/in/vivek-mane-6604a71a0/)  
 **GitHub:** [github.com/VivekMane57](https://github.com/VivekMane57)  
 **Email:** vivekmane.9731@gmail.com  
-**Location:** Kolhapur, India  
+ 
 
 ---
 
